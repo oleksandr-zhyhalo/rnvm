@@ -22,30 +22,41 @@ print_info() {
 
 # Detect OS and architecture
 detect_platform() {
-    local OS
-    local ARCH
-    OS=$(uname -s | tr '[:upper:]' '[:lower:]')
-    ARCH=$(uname -m)
+  local OS
+  local ARCH
+  OS=$(uname -s | tr '[:upper:]' '[:lower:]')
+  ARCH=$(uname -m)
 
-    case "$OS" in
-        linux)
-            case "$ARCH" in
-                x86_64) echo "linux-amd64" ;;
-                aarch64) echo "linux-arm64" ;;
-                *) echo "Unsupported architecture: $ARCH" && exit 1 ;;
-            esac
-            ;;
-        darwin)
-            case "$ARCH" in
-                x86_64) echo "macos-amd64" ;;
-                arm64) echo "macos-arm64" ;;
-                *) echo "Unsupported architecture: $ARCH" && exit 1 ;;
-            esac
-            ;;
+  case "$OS" in
+    linux)
+      case "$ARCH" in
+        x86_64)
+          # Force the musl build
+          echo "linux-amd64-musl"
+          ;;
+        aarch64)
+          # If you have a separate musl build for ARM64, you'd do:
+          echo "linux-arm64-musl"
+          # or if you keep it as "linux-arm64", do so here
+          ;;
         *)
-            echo "Unsupported OS: $OS" && exit 1
-            ;;
-    esac
+          echo "Unsupported architecture: $ARCH" && exit 1
+          ;;
+      esac
+      ;;
+    darwin)
+      case "$ARCH" in
+        x86_64) echo "macos-amd64" ;;
+        arm64) echo "macos-arm64" ;;
+        *)
+          echo "Unsupported architecture: $ARCH" && exit 1
+          ;;
+      esac
+      ;;
+    *)
+      echo "Unsupported OS: $OS" && exit 1
+      ;;
+  esac
 }
 
 # Configure shell
@@ -107,12 +118,6 @@ main() {
       curl -s "$GITHUB_LATEST" \
       | jq -r '.assets[] | select(.name == "rnvm-'${PLATFORM}'") | .browser_download_url'
     )
-      echo "Detected PLATFORM=$PLATFORM"
-      echo "DOWNLOAD_URL=$DOWNLOAD_URL"
-      if [ -z "$DOWNLOAD_URL" ]; then
-        echo "Error: no matching asset found for platform $PLATFORM."
-        exit 1
-      fi
     # Download binary
     print_info "Downloading rnvm..."
     curl -L "$DOWNLOAD_URL" -o "$RNVM_DIR/bin/rnvm"
