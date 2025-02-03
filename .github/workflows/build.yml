@@ -2,6 +2,8 @@ name: Release
 
 on:
   push:
+    tags:
+      - 'v*'
 
 jobs:
   build:
@@ -10,91 +12,88 @@ jobs:
     strategy:
       matrix:
         include:
+          # Linux x86_64
           - os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
             artifact_name: rnvm
             asset_name: rnvm-linux-amd64
+            use_cross: false
 
+          # Linux ARM64
           - os: ubuntu-latest
             target: aarch64-unknown-linux-gnu
             artifact_name: rnvm
             asset_name: rnvm-linux-arm64
-            cross: true
-            
+            use_cross: true
+
+          # Windows
           - os: windows-latest
             target: x86_64-pc-windows-msvc
             artifact_name: rnvm.exe
             asset_name: rnvm-windows-amd64.exe
+            use_cross: false
 
+          # macOS Intel
           - os: macos-latest
             target: x86_64-apple-darwin
             artifact_name: rnvm
             asset_name: rnvm-macos-amd64
+            use_cross: false
 
+          # macOS Apple Silicon
           - os: macos-latest
             target: aarch64-apple-darwin
             artifact_name: rnvm
             asset_name: rnvm-macos-arm64
+            use_cross: false
 
     steps:
-    - uses: actions/checkout@v3
+      - uses: actions/checkout@v3
 
-    - name: Install Rust
-      uses: dtolnay/rust-toolchain@stable
-      with:
-        toolchain: stable
-        targets: ${{ matrix.target }}
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+          targets: ${{ matrix.target }}
 
-    - name: Install dependencies (Ubuntu)
-      if: matrix.os == 'ubuntu-latest'
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y pkg-config libssl-dev
-        if [ "${{ matrix.cross }}" = "true" ]; then
-          sudo apt-get install -y gcc-aarch64-linux-gnu
-          sudo apt-get install -y libssl-dev:arm64
-        fi
+      - name: Install cross
+        if: matrix.use_cross
+        uses: taiki-e/install-action@cross
 
-    - name: Install cross-compilation tools
-      if: matrix.cross
-      uses: taiki-e/setup-cross-toolchain-action@v1
-      with:
-        target: ${{ matrix.target }}
+      - name: Build
+        run: |
+          if [ "${{ matrix.use_cross }}" = "true" ]; then
+            cross build --release --target ${{ matrix.target }}
+          else
+            cargo build --release --target ${{ matrix.target }}
+          fi
+        shell: bash
 
-    - name: Build
-      run: |
-        if [ "${{ matrix.cross }}" = "true" ]; then
-          OPENSSL_DIR=/usr/include/openssl \
-          PKG_CONFIG_ALLOW_CROSS=1 \
-          OPENSSL_INCLUDE_DIR=/usr/include \
-          OPENSSL_LIB_DIR=/usr/lib \
-          cargo build --release --target ${{ matrix.target }}
-        else
-          cargo build --release --target ${{ matrix.target }}
-        fi
-      shell: bash
+      - name: Prepare asset
+        run: |
+          mkdir -p release
+          if [ "${{ matrix.os }}" = "windows-latest" ]; then
+            cp target/${{ matrix.target }}/release/${{ matrix.artifact_name }} release/${{ matrix.asset_name }}
+          else
+            cp target/${{ matrix.target }}/release/${{ matrix.artifact_name }} release/${{ matrix.asset_name }}
+          fi
+        shell: bash
 
-    - name: Prepare asset
-      shell: bash
-      run: |
-        mkdir -p release
-        cp target/${{ matrix.target }}/release/${{ matrix.artifact_name }} release/${{ matrix.asset_name }}
+      - name: Generate SHA-256
+        run: |
+          cd release
+          if [ "${{ matrix.os }}" = "windows-latest" ]; then
+            certutil -hashfile ${{ matrix.asset_name }} SHA256 > ${{ matrix.asset_name }}.sha256
+          else
+            shasum -a 256 ${{ matrix.asset_name }} > ${{ matrix.asset_name }}.sha256
+          fi
+        shell: bash
 
-    - name: Generate SHA-256
-      shell: bash
-      run: |
-        cd release
-        if [ "${{ matrix.os }}" = "windows-latest" ]; then
-          certutil -hashfile ${{ matrix.asset_name }} SHA256 > ${{ matrix.asset_name }}.sha256
-        else
-          shasum -a 256 ${{ matrix.asset_name }} > ${{ matrix.asset_name }}.sha256
-        fi
-
-    - name: Upload Release Asset
-      uses: softprops/action-gh-release@v1
-      with:
-        files: |
-          release/${{ matrix.asset_name }}
-          release/${{ matrix.asset_name }}.sha256
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Upload Release Asset
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            release/${{ matrix.asset_name }}
+            release/${{ matrix.asset_name }}.sha256
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
