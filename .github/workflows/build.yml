@@ -51,18 +51,16 @@ jobs:
           toolchain: stable
           targets: ${{ matrix.target }}
 
-      - name: Build ARM64 version
-        if: matrix.use_container
+      - name: Build ARM64 version (Vendored OpenSSL)
         uses: addnab/docker-run-action@v3
         with:
           image: messense/rust-musl-cross:aarch64-musl
           options: -v ${{ github.workspace }}:/home/rust/src
           run: |
-            apk update
-            apk add pkgconf openssl-dev
             cd /home/rust/src
+            # If needed, ensure we have a basic build environment:
+            # apk update && apk add build-base
             cargo build --release --target aarch64-unknown-linux-musl
-
 
 
       - name: Regular Build
