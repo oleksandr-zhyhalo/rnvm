@@ -57,16 +57,8 @@ jobs:
             -w /code \
             rust:slim \
             bash -c "apt-get update && \
-                    apt-get install -y \
-                      gcc-aarch64-linux-gnu \
-                      pkg-config \
-                      libssl-dev \
-                      make \
-                      libc6-dev && \
+                    apt-get install -y gcc-aarch64-linux-gnu && \
                     rustup target add aarch64-unknown-linux-gnu && \
-                    PKG_CONFIG_ALLOW_CROSS=1 \
-                    OPENSSL_INCLUDE_DIR=/usr/include \
-                    OPENSSL_LIB_DIR=/usr/lib \
                     cargo build --release --target aarch64-unknown-linux-gnu"
 
       - name: Regular Build
