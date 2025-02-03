@@ -3,8 +3,6 @@ name: Release
 on:
   # Trigger on push to main or tags, etc. Adjust as you need.
   push:
-    branches:
-      - main
     tags:
       - 'v*'
 
