@@ -21,7 +21,7 @@ jobs:
             target: aarch64-unknown-linux-gnu
             artifact_name: rnvm
             asset_name: rnvm-linux-arm64
-            docker: true
+            use_container: true
 
           # Windows
           - os: windows-latest
@@ -45,30 +45,34 @@ jobs:
       - uses: actions/checkout@v3
 
       - name: Install Rust
+        if: "!matrix.use_container"
         uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: stable
           targets: ${{ matrix.target }}
 
-      - name: Build in Docker (ARM64)
-        if: matrix.docker
-        run: |
-          docker run --rm -v $(pwd):/code \
-            -w /code \
-            rust:slim \
-            bash -c "apt-get update && \
-                    apt-get install -y gcc-aarch64-linux-gnu && \
-                    rustup target add aarch64-unknown-linux-gnu && \
-                    cargo build --release --target aarch64-unknown-linux-gnu"
+      - name: Build ARM64 version
+        if: matrix.use_container
+        uses: addnab/docker-run-action@v3
+        with:
+          image: messense/rust-musl-cross:aarch64-musl
+          options: -v ${{ github.workspace }}:/home/rust/src
+          run: |
+            cd /home/rust/src
+            cargo build --release --target aarch64-unknown-linux-musl
 
       - name: Regular Build
-        if: "!matrix.docker"
+        if: "!matrix.use_container"
         run: cargo build --release --target ${{ matrix.target }}
 
       - name: Prepare asset
         run: |
           mkdir -p release
-          cp target/${{ matrix.target }}/release/${{ matrix.artifact_name }} release/${{ matrix.asset_name }}
+          if [ "${{ matrix.use_container }}" = "true" ]; then
+            cp target/aarch64-unknown-linux-musl/release/${{ matrix.artifact_name }} release/${{ matrix.asset_name }}
+          else
+            cp target/${{ matrix.target }}/release/${{ matrix.artifact_name }} release/${{ matrix.asset_name }}
+          fi
         shell: bash
 
       - name: Generate SHA-256
