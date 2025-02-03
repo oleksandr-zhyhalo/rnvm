@@ -15,35 +15,31 @@ jobs:
             target: x86_64-unknown-linux-gnu
             artifact_name: rnvm
             asset_name: rnvm-linux-amd64
-            use_cross: false
 
           # Linux ARM64
           - os: ubuntu-latest
             target: aarch64-unknown-linux-gnu
             artifact_name: rnvm
             asset_name: rnvm-linux-arm64
-            use_cross: true
+            docker: true
 
           # Windows
           - os: windows-latest
             target: x86_64-pc-windows-msvc
             artifact_name: rnvm.exe
             asset_name: rnvm-windows-amd64.exe
-            use_cross: false
 
           # macOS Intel
           - os: macos-latest
             target: x86_64-apple-darwin
             artifact_name: rnvm
             asset_name: rnvm-macos-amd64
-            use_cross: false
 
           # macOS Apple Silicon
           - os: macos-latest
             target: aarch64-apple-darwin
             artifact_name: rnvm
             asset_name: rnvm-macos-arm64
-            use_cross: false
 
     steps:
       - uses: actions/checkout@v3
@@ -54,27 +50,25 @@ jobs:
           toolchain: stable
           targets: ${{ matrix.target }}
 
-      - name: Install cross
-        if: matrix.use_cross
-        uses: taiki-e/install-action@cross
-
-      - name: Build
+      - name: Build in Docker (ARM64)
+        if: matrix.docker
         run: |
-          if [ "${{ matrix.use_cross }}" = "true" ]; then
-            cross build --release --target ${{ matrix.target }}
-          else
-            cargo build --release --target ${{ matrix.target }}
-          fi
-        shell: bash
+          docker run --rm -v $(pwd):/code \
+            -w /code \
+            rust:slim \
+            bash -c "apt-get update && \
+                    apt-get install -y gcc-aarch64-linux-gnu && \
+                    rustup target add aarch64-unknown-linux-gnu && \
+                    cargo build --release --target aarch64-unknown-linux-gnu"
+
+      - name: Regular Build
+        if: "!matrix.docker"
+        run: cargo build --release --target ${{ matrix.target }}
 
       - name: Prepare asset
         run: |
           mkdir -p release
-          if [ "${{ matrix.os }}" = "windows-latest" ]; then
-            cp target/${{ matrix.target }}/release/${{ matrix.artifact_name }} release/${{ matrix.asset_name }}
-          else
-            cp target/${{ matrix.target }}/release/${{ matrix.artifact_name }} release/${{ matrix.asset_name }}
-          fi
+          cp target/${{ matrix.target }}/release/${{ matrix.artifact_name }} release/${{ matrix.asset_name }}
         shell: bash
 
       - name: Generate SHA-256
