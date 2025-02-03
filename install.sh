@@ -103,8 +103,10 @@ main() {
     local PLATFORM
     PLATFORM=$(detect_platform)
     local DOWNLOAD_URL
-    DOWNLOAD_URL=$(curl -s $GITHUB_LATEST | grep "browser_download_url.*rnvm-${PLATFORM}" | cut -d '"' -f 4)
-
+    DOWNLOAD_URL=$(
+      curl -s "$GITHUB_LATEST" \
+      | jq -r '.assets[] | select(.name == "rnvm-'${PLATFORM}'") | .browser_download_url'
+    )
     # Download binary
     print_info "Downloading rnvm..."
     curl -L "$DOWNLOAD_URL" -o "$RNVM_DIR/bin/rnvm"
