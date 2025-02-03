@@ -107,6 +107,12 @@ main() {
       curl -s "$GITHUB_LATEST" \
       | jq -r '.assets[] | select(.name == "rnvm-'${PLATFORM}'") | .browser_download_url'
     )
+      echo "Detected PLATFORM=$PLATFORM"
+      echo "DOWNLOAD_URL=$DOWNLOAD_URL"
+      if [ -z "$DOWNLOAD_URL" ]; then
+        echo "Error: no matching asset found for platform $PLATFORM."
+        exit 1
+      fi
     # Download binary
     print_info "Downloading rnvm..."
     curl -L "$DOWNLOAD_URL" -o "$RNVM_DIR/bin/rnvm"

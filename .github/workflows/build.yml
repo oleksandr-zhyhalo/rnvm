@@ -1,7 +1,6 @@
 name: Release
 
 on:
-  # Trigger on push to main or tags, etc. Adjust as you need.
   push:
     tags:
       - 'v*'
@@ -10,40 +9,38 @@ jobs:
   build:
     name: Build and Release
     runs-on: ${{ matrix.os }}
-    permissions:
-      contents: write
     strategy:
       matrix:
         include:
-          # Linux x86_64 (native)
+          # Existing Linux x86_64 (gnu) build
           - os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
             artifact_name: rnvm
             asset_name: rnvm-linux-amd64
             use_container: false
 
-          # Linux ARM64 (docker-based cross-compile)
+          # NEW Linux x86_64 MUSL build
           - os: ubuntu-latest
-            target: aarch64-unknown-linux-musl
+            target: x86_64-unknown-linux-musl
             artifact_name: rnvm
-            asset_name: rnvm-linux-arm64
+            asset_name: rnvm-linux-amd64-musl
             use_container: true
 
-          # Windows x86_64 (native)
+          # Windows build
           - os: windows-latest
             target: x86_64-pc-windows-msvc
             artifact_name: rnvm.exe
             asset_name: rnvm-windows-amd64.exe
             use_container: false
 
-          # macOS x86_64 (native)
+          # macOS Intel
           - os: macos-latest
             target: x86_64-apple-darwin
             artifact_name: rnvm
             asset_name: rnvm-macos-amd64
             use_container: false
 
-          # macOS ARM64 (native)
+          # macOS ARM64
           - os: macos-latest
             target: aarch64-apple-darwin
             artifact_name: rnvm
@@ -54,7 +51,7 @@ jobs:
       # 1. Check out code
       - uses: actions/checkout@v3
 
-      # 2. Install Rust toolchain on non-container (native) builds
+      # 2. Install Rust only if NOT using container
       - name: Install Rust
         if: "!matrix.use_container"
         uses: dtolnay/rust-toolchain@stable
@@ -62,36 +59,36 @@ jobs:
           toolchain: stable
           targets: ${{ matrix.target }}
 
-      # 3. Docker-based cross-compile only on Linux
-      - name: Build ARM64 version (Vendored OpenSSL)
+      # 3. Docker-based build (MUSL) – only on Linux
+      - name: Build MUSL Binary
         if: matrix.use_container
         uses: addnab/docker-run-action@v3
         with:
-          image: messense/rust-musl-cross:aarch64-musl
+          image: messense/rust-musl-cross:x86_64-musl
           options: -v ${{ github.workspace }}:/home/rust/src
           run: |
             cd /home/rust/src
-            # If needed for other C dependencies:
+            # If you want vendored OpenSSL or need other system libs, do:
             # apk update && apk add build-base
-            cargo build --release --target aarch64-unknown-linux-musl
+            cargo build --release --target x86_64-unknown-linux-musl
 
-      # 4. Regular build for native Linux, macOS, or Windows
+      # 4. Regular (native) build for other platforms
       - name: Regular Build
         if: "!matrix.use_container"
         run: cargo build --release --target ${{ matrix.target }}
 
-      # 5. Copy final artifact(s) into a release folder
+      # 5. Prepare the artifact
       - name: Prepare asset
         run: |
           mkdir -p release
           if [ "${{ matrix.use_container }}" = "true" ]; then
-            cp target/aarch64-unknown-linux-musl/release/${{ matrix.artifact_name }} release/${{ matrix.asset_name }}
+            cp target/x86_64-unknown-linux-musl/release/${{ matrix.artifact_name }} release/${{ matrix.asset_name }}
           else
             cp target/${{ matrix.target }}/release/${{ matrix.artifact_name }} release/${{ matrix.asset_name }}
           fi
         shell: bash
 
-      # 6. Generate a SHA-256 checksum
+      # 6. Generate a SHA-256 checksum (optional)
       - name: Generate SHA-256
         run: |
           cd release
@@ -102,7 +99,7 @@ jobs:
           fi
         shell: bash
 
-      # 7. Upload assets to a GitHub Release
+      # 7. Upload to GitHub Releases
       - name: Upload Release Asset
         uses: softprops/action-gh-release@v1
         with:
