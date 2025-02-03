@@ -55,11 +55,14 @@ jobs:
         if: matrix.use_container
         uses: addnab/docker-run-action@v3
         with:
-          image: messense/rust-musl-cross:aarch64-unknown-linux-musl-openssl
+          image: messense/rust-musl-cross:aarch64-musl
           options: -v ${{ github.workspace }}:/home/rust/src
           run: |
+            apk update
+            apk add pkgconf openssl-dev
             cd /home/rust/src
             cargo build --release --target aarch64-unknown-linux-musl
+
 
 
       - name: Regular Build
